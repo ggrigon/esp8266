@@ -1,43 +1,35 @@
 #include <ESP8266WiFi.h>
-#include <DHT.h>
-#define DHTTYPE   DHT11
-#define DHTPIN    14 // D5
+#include <DHT12.h>
 
-DHT dht(DHTPIN, DHTTYPE, 12);
+DHT12 dht12(14, true);
 WiFiClient client;
 
-float temperature, humidity;
+float temperature, humidity, heatindex, dewpoint;
 
-const char* ssid="RIGON";
+const char* ssid="XXXXX";
 const char* password = "XXXXX";
 
 
-//Colocar a API Key para escrita neste campo
-//Ela é fornecida no canal que foi criado na aba API Keys
+
 String apiKey = "XXXXX";
 const char* server = "api.thingspeak.com";
 
 
-
 void setup() {
-  dht.begin();
-
-
-  Serial.begin(115200);
+  dht12.begin();
+  Serial.begin(9600);
   Serial.println();
   Serial.print("Wifi connecting to ");
   Serial.println( ssid );
 
   WiFi.begin(ssid,password);
-
   Serial.println();
   Serial.print("Connecting");
 
   while( WiFi.status() != WL_CONNECTED ){
       delay(500);
-      Serial.print(".");
+      Serial.print(".");        
   }
-
 
   Serial.println("Wifi Connected Success!");
   Serial.print("NodeMCU IP Address : ");
@@ -46,13 +38,11 @@ void setup() {
 }
 
 void loop() {
-  humidity = dht.readHumidity();
-  temperature = dht.readTemperature();
-  Serial.print("Umidade: ");
-  Serial.println(humidity);
-  Serial.print("Temperatura: ");
-  Serial.println(temperature);
-
+  humidity = dht12.readHumidity();
+  temperature = dht12.readTemperature();
+  heatindex = dht12.computeHeatIndex(temperature, humidity, false);
+  dewpoint = dht12.dewPoint(temperature, humidity, false);
+  
    //Inicia um client TCP para o envio dos dados
   if (client.connect(server,80)) {
     String postStr = apiKey;
@@ -60,8 +50,12 @@ void loop() {
            postStr += String(temperature);
            postStr +="&amp;field2=";
            postStr += String(humidity);
-           postStr += "\r\n\r\n";
-
+           postStr +="&amp;field3=";
+           postStr += String(heatindex);
+           postStr +="&amp;field4=";
+           postStr += String(dewpoint);
+           //postStr += "\r\n\r\n";
+ 
      client.print("POST /update HTTP/1.1\n");
      client.print("Host: api.thingspeak.com\n");
      client.print("Connection: close\n");
@@ -71,15 +65,22 @@ void loop() {
      client.print(postStr.length());
      client.print("\n\n");
      client.print(postStr);
-
+ 
      //Logs na porta serial
-     Serial.print("Temperatura: ");
-     Serial.print(temperature);
-     Serial.print(" Umidade: ");
-     Serial.println(humidity);
+      Serial.print("DHT12=> Temperatura: ");
+      Serial.print(temperature);
+      Serial.print("C ");
+      Serial.print("Umidade: ");
+      Serial.print(humidity);
+      Serial.print("% ");
+      Serial.print("Índice de Calor: ");
+      Serial.print(heatindex);
+      Serial.print("C ");
+      Serial.print("Ponto de orvalho: ");
+      Serial.print(dewpoint);
+      Serial.println("C");
+     
   }
   client.stop();
-
-  delay(5000);
-
+  delay(60000);
 }
